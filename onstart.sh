@@ -9,11 +9,11 @@ apt-get update && apt-get install -y wget nano
 # 3. 最新スクリプト取得 (GitHubから)
 wget -O /app/tagger_script.py https://raw.githubusercontent.com/hnaka488-maker/immich_auto_taggar/refs/heads/main/tagger_script.py
 
-# 4. モデルのダウンロード完了を待機
+# 4. モデルのダウンロード完了を待機 (config.json の存在を確認)
 echo "Waiting for model in $MODEL_PATH..."
 until [ -f "$MODEL_PATH/config.json" ]; do
     sleep 30
-    echo "Still waiting..."
+    echo "Still waiting for model files..."
 done
 
 # 5. エンジン起動 (特定したパスを使用)
