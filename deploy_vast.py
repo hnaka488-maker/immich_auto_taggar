@@ -13,6 +13,10 @@ def get_env_or_error(key):
     return value
 
 def deploy():
+    # Windows の cp932 エンコーディングエラーを回避するための設定
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+    os.environ["PYTHONUTF8"] = "1"
+
     # 1. vastai.exe の絶対パス
     vastai_exe = r"C:\Users\n-tra\AppData\Local\Python\pythoncore-3.14-64\Scripts\vastai.exe"
     
@@ -21,27 +25,27 @@ def deploy():
     tagger_url = "https://raw.githubusercontent.com/hnaka488-maker/immich_auto_taggar/refs/heads/main/tagger_script.py"
     
     onstart_content = f"""#!/bin/bash
-# 1. ワークスペースのパスを特定 (vllm-workspace か workspace)
+# 1. Path detection
 W_DIR=$(ls -d /vllm-workspace /workspace 2>/dev/null | head -n 1)
 MODEL_PATH="$W_DIR/model/Qwen2.5-VL-7B-Instruct"
 
-# 2. 必要なツールの準備
+# 2. Tools
 apt-get update && apt-get install -y wget nano
 
-# 3. 最新スクリプト取得 (GitHubから)
+# 3. Get latest script from GitHub
 wget -O /app/tagger_script.py {tagger_url}
 
-# 4. モデルのダウンロード完了を待機 (config.json の存在を確認)
+# 4. Wait for model files (config.json)
 echo "Waiting for model in $MODEL_PATH..."
 until [ -f "$MODEL_PATH/config.json" ]; do
     sleep 30
     echo "Still waiting for model files..."
 done
 
-# 5. エンジン起動 (特定したパスを使用)
+# 5. Start engine
 python3 -m vllm.entrypoints.openai.api_server --model "$MODEL_PATH" --trust-remote-code --max-model-len 4096 --gpu-memory-utilization 0.9 > /app/engine.log 2>&1 &
 
-# 6. 待機して実行
+# 6. Wait and run tagging script
 sleep 120
 python3 /app/tagger_script.py
 """
@@ -69,13 +73,12 @@ python3 /app/tagger_script.py
         first_offer = lines[1].split()[0]
         print(f"✅ 最安の Offer ID {first_offer} を確保しました。")
 
-        # 🚀 インスタンス作成
-        # --onstart には、直接起動時に実行されるシェルコマンドを指定します。
-        # ここでは GitHub にプッシュした onstart.sh をダウンロードしてそのまま bash で実行させます。
+        # 🛸 インスタンス作成
+        # chcp 65001 を実行してコードページを UTF-8 に変更してからコマンドを実行します
         env_vars = f'AZURE_SAS_URL={model_url} IMMICH_URL={immich_url} IMMICH_API_KEY={immich_api_key}'
 
         launch_cmd = (
-            f'{vastai_exe} create instance {first_offer} '
+            f'chcp 65001 > nul && {vastai_exe} create instance {first_offer} '
             f'--image {docker_image} '
             f'--env "{env_vars}" '
             f'--onstart onstart.sh '
@@ -89,10 +92,13 @@ python3 /app/tagger_script.py
         if result.returncode == 0:
             print("-" * 50)
             print("✨ デプロイ命令の送信が完了しました！")
+            print(f"コマンド出力:\n{result.stdout}") # 詳細を表示
             print("Vast.ai コンソールで 'Running' になるまで数分待機してください。")
             print("-" * 50)
         else:
-            print(f"⚠️ エラーが発生しました:\n{result.stderr}")
+            print(f"⚠️ エラーが発生しました (Exit Code: {result.returncode}):")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
 
     except Exception as e:
         print(f"⚠️ 実行エラー: {e}")
