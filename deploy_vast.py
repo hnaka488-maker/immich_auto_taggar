@@ -53,10 +53,13 @@ python3 /app/tagger_script.py
 
         # 🚀 インスタンス作成
         # --onstart にはファイル名 "onstart.sh" を指定します
+        # --- deploy_vast.py の launch_cmd 部分 ---
+        env_vars = f'AZURE_SAS_URL={model_url} IMMICH_URL={immich_url} IMMICH_API_KEY={immich_api_key}'
+
         launch_cmd = (
             f'{vastai_exe} create instance {first_offer} '
             f'--image {docker_image} '
-            f'--env "AZURE_SAS_URL=\'{model_url}\' IMMICH_URL=\'{immich_url}\' IMMICH_API_KEY=\'{immich_api_key}\'" '
+            f'--env "{env_vars}" '  # クォートをシンプルに
             f'--onstart onstart.sh '
             f'--disk 60'
         )
