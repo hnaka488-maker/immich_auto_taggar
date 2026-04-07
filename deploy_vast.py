@@ -1,78 +1,80 @@
 import os
 import subprocess
+import sys
 from dotenv import load_dotenv
 
 # .env ファイルから環境変数を読み込む
 load_dotenv()
 
 def get_env_or_error(key):
-    """環境変数を取得し、未設定ならエラーを投げるヘルパー関数"""
     value = os.getenv(key)
     if not value:
-        raise ValueError(f"❌ .env ファイルに {key} が設定されていません。確認してください。")
+        raise ValueError(f"❌ .env ファイルに {key} が設定されていません。")
     return value
 
 def deploy():
-    # 1. vastai.exe の絶対パス（環境に合わせて調整済み）
+    # 1. vastai.exe の絶対パス
     vastai_exe = r"C:\Users\n-tra\AppData\Local\Python\pythoncore-3.14-64\Scripts\vastai.exe"
+    
+    # 2. 起動時に実行するスクリプトの内容 (onstart.sh)
+    # 改行コードを Linux 形式 (\n) に固定し、文字コードエラーを防ぐために ASCII 範囲内で記述します
+    tagger_url = "https://raw.githubusercontent.com/hnaka488-maker/immich_auto_taggar/refs/heads/main/tagger_script.py"
+    
+    onstart_content = f"""#!/bin/bash
+apt-get update && apt-get install -y wget nano
+wget -O /app/tagger_script.py {tagger_url}
+python3 -m vllm.entrypoints.openai.api_server --model /workspace/model/Qwen2.5-VL-7B-Instruct --trust-remote-code --max-model-len 4096 --gpu-memory-utilization 0.9 > /app/engine.log 2>&1 &
+sleep 120
+python3 /app/tagger_script.py
+"""
+
+    # onstart.sh を UTF-8 (BOMなし) で保存
+    with open("onstart.sh", "w", encoding="utf-8", newline='\n') as f:
+        f.write(onstart_content)
 
     try:
-        # 2. .env から設定を読み込む
         model_url = get_env_or_error("MODEL_URL")
         docker_image = get_env_or_error("DOCKER_IMAGE")
         immich_url = get_env_or_error("IMMICH_URL")
         immich_api_key = get_env_or_error("IMMICH_API_KEY")
 
         print("🔍 最安の RTX 4090 / A6000 (Verified) を探しています...")
-        
-        # 3. Vast.ai で利用可能な最安の GPU リストを取得
         search_cmd = f'{vastai_exe} search offers "gpu_name=RTX_4090 num_gpus=1 verified=true" -o "price_per_gpu"'
         
-        # 検索の実行
         offers_output = subprocess.check_output(search_cmd, shell=True).decode('utf-8').strip()
-        
-        # 結果を行に分割
         lines = [line for line in offers_output.split('\n') if line.strip()]
         
         if len(lines) < 2:
             print("❌ 条件に合う GPU が見つかりませんでした。")
             return
 
-        # 最安の Offer ID を取得
         first_offer = lines[1].split()[0]
         print(f"✅ 最安の Offer ID {first_offer} を確保しました。")
 
-        # 4. インスタンスを作成（デプロイ開始）
-        # 【修正ポイント A】MODEL_URL を AZURE_SAS_URL という名前に変更
-        # 【修正ポイント B】--onstart オプションを追加して自動起動を設定
-        # --- 修正後の launch_cmd 部分 ---
-        # 先ほどコピーしたGitHubのRaw URLを入力してください
-        tagger_raw_url = "https://raw.githubusercontent.com/hnaka488-maker/immich_auto_taggar/refs/heads/main/tagger_script.py"
-
-        # --- 修正後の launch_cmd 部分 ---
-        # --onstart に、直接コマンドではなく「ファイル名」を指定します
+        # 🚀 インスタンス作成
+        # --onstart にはファイル名 "onstart.sh" を指定します
         launch_cmd = (
             f'{vastai_exe} create instance {first_offer} '
             f'--image {docker_image} '
             f'--env "AZURE_SAS_URL=\'{model_url}\' IMMICH_URL=\'{immich_url}\' IMMICH_API_KEY=\'{immich_api_key}\'" '
-            f'--onstart onstart.sh '  # ここをファイル名に変更
+            f'--onstart onstart.sh '
             f'--disk 60'
         )
         
         print("🚀 Vast.ai にデプロイ命令を送信中...")
-        subprocess.run(launch_cmd, shell=True)
+        # Windowsのcp932エラーを避けるため、出力を無視するか適切に処理します
+        result = subprocess.run(launch_cmd, shell=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
         
-        print("-" * 50)
-        print("✨ 【全自動モード】デプロイ命令の送信が完了しました！")
-        print("1. Vast.ai のコンソール（https://vast.ai/console/instances/）を開いてください。")
-        print("2. Status が 'Running' になると、バックグラウンドで自動的にダウンロードと解析が始まります。")
-        print("3. SSH でログインして操作する必要はありません。Immich にタグが付くのを待つだけです。")
-        print("-" * 50)
+        if result.returncode == 0:
+            print("-" * 50)
+            print("✨ デプロイ命令の送信が完了しました！")
+            print("Vast.ai コンソールで 'Running' になるまで数分待機してください。")
+            print("-" * 50)
+        else:
+            print(f"⚠️ エラーが発生しました:\n{result.stderr}")
 
-    except subprocess.CalledProcessError as e:
-        print(f"⚠️ vastai コマンドの実行中にエラーが発生しました: {e}")
     except Exception as e:
-        print(f"⚠️ 予期しないエラーが発生しました: {e}")
+        print(f"⚠️ 実行エラー: {e}")
 
 if __name__ == "__main__":
     deploy()
