@@ -47,7 +47,7 @@ def deploy():
         # 【修正ポイント B】--onstart オプションを追加して自動起動を設定
         # --- 修正後の launch_cmd 部分 ---
         # 先ほどコピーしたGitHubのRaw URLを入力してください
-        tagger_raw_url = "https://raw.githubusercontent.com/hiro488/usevastai/main/tagger_script.py"
+        tagger_raw_url = "https://raw.githubusercontent.com/hnaka488-maker/immich_auto_taggar/refs/heads/main/tagger_script.py"
 
         launch_cmd = (
             f'{vastai_exe} create instance {first_offer} '
