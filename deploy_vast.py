@@ -73,14 +73,12 @@ python3 /app/tagger_script.py
         # --onstart には、直接起動時に実行されるシェルコマンドを指定します。
         # ここでは GitHub にプッシュした onstart.sh をダウンロードしてそのまま bash で実行させます。
         env_vars = f'AZURE_SAS_URL={model_url} IMMICH_URL={immich_url} IMMICH_API_KEY={immich_api_key}'
-        onstart_url = "https://raw.githubusercontent.com/hnaka488-maker/immich_auto_taggar/refs/heads/main/onstart.sh"
-        onstart_cmd = f"wget -O /app/onstart.sh {onstart_url} && bash /app/onstart.sh"
 
         launch_cmd = (
             f'{vastai_exe} create instance {first_offer} '
             f'--image {docker_image} '
             f'--env "{env_vars}" '
-            f'--onstart "{onstart_cmd}" '
+            f'--onstart onstart.sh '
             f'--disk 60'
         )
         
