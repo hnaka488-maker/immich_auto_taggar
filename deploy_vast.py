@@ -49,20 +49,13 @@ def deploy():
         # 先ほどコピーしたGitHubのRaw URLを入力してください
         tagger_raw_url = "https://raw.githubusercontent.com/hnaka488-maker/immich_auto_taggar/refs/heads/main/tagger_script.py"
 
+        # --- 修正後の launch_cmd 部分 ---
+        # --onstart に、直接コマンドではなく「ファイル名」を指定します
         launch_cmd = (
             f'{vastai_exe} create instance {first_offer} '
             f'--image {docker_image} '
             f'--env "AZURE_SAS_URL=\'{model_url}\' IMMICH_URL=\'{immich_url}\' IMMICH_API_KEY=\'{immich_api_key}\'" '
-            f'--onstart "'
-            # 1. 必要なツールのインストール
-            f'apt-get update && apt-get install -y wget nano && '
-            # 2. GitHubから最新のスクリプトをダウンロードして /app に配置
-            f'wget -O /app/tagger_script.py {tagger_raw_url} && '
-            # 3. AIエンジン (vLLM) をバックグラウンドで起動
-            f'python3 -m vllm.entrypoints.openai.api_server --model /workspace/model/Qwen2.5-VL-7B-Instruct --trust-remote-code --max-model-len 4096 --gpu-memory-utilization 0.9 > /app/engine.log 2>&1 & '
-            # 4. エンジンの起動を待ってから解析スクリプトを実行
-            f'sleep 120 && '
-            f'python3 /app/tagger_script.py" '
+            f'--onstart onstart.sh '  # ここをファイル名に変更
             f'--disk 60'
         )
         
